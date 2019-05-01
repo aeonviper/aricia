@@ -1,0 +1,73 @@
+package application.aspect;
+
+import javax.persistence.EntityManager;
+import javax.persistence.EntityManagerFactory;
+
+import org.hibernate.cfg.AnnotationConfiguration;
+import org.hibernate.dialect.PostgreSQLDialect;
+import org.hibernate.dialect.Dialect;
+
+import org.hibernate.ejb.EntityManagerFactoryImpl;
+import javax.persistence.spi.PersistenceUnitTransactionType;
+
+import com.google.inject.AbstractModule;
+import com.google.inject.Scopes;
+import com.google.inject.servlet.ServletScopes;
+
+import com.google.inject.matcher.Matchers;
+
+import application.service.*;
+import application.model.*;
+
+import core.aspect.Transactional;
+import core.aspect.TransactionInterceptor;
+import core.central.Holder;
+
+public class GuiceModule extends AbstractModule {
+	private EntityManagerFactory entityManagerFactory;
+	
+	protected void configure() {	
+		
+		bindInterceptor(
+                Matchers.any(),
+                Matchers.annotatedWith(Transactional.class),
+                (new TransactionInterceptor()).
+                        setEntityManagerFactory(
+                        		entityManagerFactory = new EntityManagerFactoryImpl(
+                                (createAnnotationConfiguration(
+                                        PostgreSQLDialect.class,
+                                        "java:/comp/env/jdbc/applicationDataSource",
+                                        Category.class,
+                                        Product.class,
+                                        Person.class,                        
+                                        Model.class
+                                )).buildSessionFactory(),
+                                PersistenceUnitTransactionType.RESOURCE_LOCAL,
+                                false, null))
+        );
+		Holder.setEntityManagerFactory(entityManagerFactory);
+    }
+	
+	
+	private AnnotationConfiguration createAnnotationConfiguration(
+            Class<? extends Dialect> dialect,
+            String jndiName,
+            Class... entityClasses) {
+
+        AnnotationConfiguration annotationConfiguration;
+        annotationConfiguration = new AnnotationConfiguration();
+        
+        annotationConfiguration.setProperty("hibernate.dialect", dialect.getName());
+        annotationConfiguration.setProperty("hibernate.connection.datasource", jndiName);
+        //annotationConfiguration.setProperty("hibernate.hbm2ddl.auto", "create");
+        //annotationConfiguration.setProperty("hibernate.hbm2ddl.auto", "update");
+        annotationConfiguration.setProperty("hibernate.show_sql", "update");
+        annotationConfiguration.setProperty("hibernate.format_sql", "update");
+        annotationConfiguration.setProperty("hibernate.connection.autocommit", "false");
+                
+        for (Class clazz : entityClasses) {
+            annotationConfiguration.addAnnotatedClass(clazz);
+        }
+        return annotationConfiguration;
+    }
+}
